@@ -76,7 +76,7 @@ static const int ddLogLevel = LOG_LEVEL_VERBOSE;
     self.viewController.statusLabel.text = @"XMPP connecting...";
     
 	NSError *error = nil;
-	if (![xmppStream connectWithTimeout:5 error:&error])
+	if (![xmppStream connect:&error])
 	{
 		DDLogError(@"%@: Error in xmpp connection: %@", THIS_FILE, error);
         self.viewController.statusLabel.text = @"XMPP connect failed";

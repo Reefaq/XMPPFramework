@@ -5,8 +5,6 @@
   #import "DDXML.h"
 #endif
 
-#define _XMPP_PRIVACY_H
-
 @class XMPPIQ;
 
 extern NSString *const XMPPPrivacyErrorDomain;

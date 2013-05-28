@@ -16,14 +16,6 @@
 {
 	// Inherits protected variables from XMPPCoreDataStorage
 	
-#if __has_feature(objc_arc_weak)
-	__weak XMPPRoster *parent;
-#else
-	__unsafe_unretained XMPPRoster *parent;
-#endif
-	dispatch_queue_t parentQueue;
-	void *parentQueueTag;
-    
 	NSMutableSet *rosterPopulationSet;
 }
 

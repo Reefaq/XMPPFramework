@@ -16,16 +16,12 @@
 @interface XMPPModule : NSObject
 {
 	XMPPStream *xmppStream;
-
-	dispatch_queue_t moduleQueue;
-	void *moduleQueueTag;
 	
+	dispatch_queue_t moduleQueue;
 	id multicastDelegate;
 }
 
 @property (readonly) dispatch_queue_t moduleQueue;
-@property (readonly) void *moduleQueueTag;
-
 @property (strong, readonly) XMPPStream *xmppStream;
 
 - (id)init;

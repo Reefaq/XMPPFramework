@@ -55,7 +55,7 @@
 		
 	}};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_sync(moduleQueue, block);
@@ -169,16 +169,14 @@
 	NSXMLElement * decline = [x elementForName:@"decline"];
 	
 	NSXMLElement * directInvite = [message elementForName:@"x" xmlns:@"jabber:x:conference"];
-    
-    XMPPJID * roomJID = [message from];
 	
 	if (invite || directInvite)
 	{
-		[multicastDelegate xmppMUC:self roomJID:roomJID didReceiveInvitation:message];
+		[multicastDelegate xmppMUC:self didReceiveRoomInvitation:message];
 	}
 	else if (decline)
 	{
-		[multicastDelegate xmppMUC:self roomJID:roomJID didReceiveInvitationDecline:message];
+		[multicastDelegate xmppMUC:self didReceiveRoomInvitationDecline:message];
 	}
 }
 

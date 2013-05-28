@@ -9,7 +9,6 @@
 #import <Foundation/Foundation.h>
 #import "XMPP.h"
 
-#define _XMPP_BANDWIDTH_MONITOR_H
 
 @interface XMPPBandwidthMonitor : XMPPModule
 

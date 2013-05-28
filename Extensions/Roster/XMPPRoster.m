@@ -26,7 +26,6 @@ enum XMPPRosterFlags
 {
 	kRequestedRoster = 1 << 0,  // If set, we have requested the roster
 	kHasRoster       = 1 << 1,  // If set, we have received the roster
-    kPopulatingRoster = 1 << 2,  // If set, we are populating the roster
 };
 
 @interface XMPPRoster (PrivateAPI)
@@ -164,7 +163,7 @@ enum XMPPRosterFlags
 		result = (config & kAutoFetchRoster) ? YES : NO;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_sync(moduleQueue, block);
@@ -182,7 +181,7 @@ enum XMPPRosterFlags
 			config &= ~kAutoFetchRoster;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -196,7 +195,7 @@ enum XMPPRosterFlags
 		result = (config & kAutoAcceptKnownPresenceSubscriptionRequests) ? YES : NO;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_sync(moduleQueue, block);
@@ -214,7 +213,7 @@ enum XMPPRosterFlags
 			config &= ~kAutoAcceptKnownPresenceSubscriptionRequests;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -228,7 +227,7 @@ enum XMPPRosterFlags
 		result = (config & kRosterlessOperation) ? YES : NO;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_sync(moduleQueue, block);
@@ -246,58 +245,26 @@ enum XMPPRosterFlags
 			config &= ~kRosterlessOperation;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
 }
 
-
-- (BOOL)hasRequestedRoster
-{
-	__block BOOL result = NO;
-	
-	dispatch_block_t block = ^{
-		result = (flags & kRequestedRoster) ? YES : NO;
-	};
-	
-	if (dispatch_get_specific(moduleQueueTag))
-		block();
-	else
-		dispatch_sync(moduleQueue, block);
-	
-	return result;
-}
-
-- (BOOL)isPopulating{
-    
-    __block BOOL result = NO;
-	
-	dispatch_block_t block = ^{
-		result = (flags & kPopulatingRoster) ? YES : NO;
-	};
-	
-	if (dispatch_get_specific(moduleQueueTag))
-		block();
-	else
-		dispatch_sync(moduleQueue, block);
-	
-	return result;
-}
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma mark Utilities
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-- (BOOL)_requestedRoster
+- (BOOL)requestedRoster
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	return (flags & kRequestedRoster) ? YES : NO;
 }
 
-- (void)_setRequestedRoster:(BOOL)flag
+- (void)setRequestedRoster:(BOOL)flag
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	if (flag)
 		flags |= kRequestedRoster;
@@ -305,16 +272,16 @@ enum XMPPRosterFlags
 		flags &= ~kRequestedRoster;
 }
 
-- (BOOL)_hasRoster
+- (BOOL)hasRoster
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	return (flags & kHasRoster) ? YES : NO;
 }
 
-- (void)_setHasRoster:(BOOL)flag
+- (void)setHasRoster:(BOOL)flag
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	if (flag)
 		flags |= kHasRoster;
@@ -322,22 +289,6 @@ enum XMPPRosterFlags
 		flags &= ~kHasRoster;
 }
 
-- (BOOL)_populatingRoster
-{
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
-	
-	return (flags & kPopulatingRoster) ? YES : NO;
-}
-
-- (void)_setPopulatingRoster:(BOOL)flag
-{
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
-	
-	if (flag)
-		flags |= kPopulatingRoster;
-	else
-		flags &= ~kPopulatingRoster;
-}
 /**
  * Some server's include in our roster the JID's of user's NOT in our roster.
  * This happens when another user adds us to their roster, and requests permission to receive our presence.
@@ -382,69 +333,55 @@ enum XMPPRosterFlags
 #pragma mark Roster Management
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-- (void)addUser:(XMPPJID *)jid withNickname:(NSString *)optionalName{
-	[self addUser:jid withNickname:optionalName groups:nil subscribeToPresence:YES];
-}
-
-- (void)addUser:(XMPPJID *)jid withNickname:(NSString *)optionalName groups:(NSArray *)groups{
-	[self addUser:jid withNickname:optionalName groups:groups subscribeToPresence:YES];
-}
-
-- (void)addUser:(XMPPJID *)jid withNickname:(NSString *)optionalName groups:(NSArray *)groups subscribeToPresence:(BOOL)subscribe{
+- (void)addUser:(XMPPJID *)jid withNickname:(NSString *)optionalName
+{
+	// This is a public method, so it may be invoked on any thread/queue.
 	
 	if (jid == nil) return;
-
+	
 	XMPPJID *myJID = xmppStream.myJID;
-
+	
 	if ([myJID isEqualToJID:jid options:XMPPJIDCompareBare])
 	{
 		// You don't need to add yourself to the roster.
 		// XMPP will automatically send you presence from all resources signed in under your username.
-		//
+		// 
 		// E.g. If you sign in with robbiehanson@deusty.com/home you'll automatically
 		//    receive presence from robbiehanson@deusty.com/work
 		
 		XMPPLogInfo(@"%@: %@ - Ignoring request to add myself to my own roster", [self class], THIS_METHOD);
 		return;
 	}
-
-	// Add the buddy to our roster
-	//
+	
+	// Add the user to our roster.
+	// 
 	// <iq type="set">
 	//   <query xmlns="jabber:iq:roster">
-	//     <item jid="bareJID" name="optionalName">
-	//      <group>family</group>
-	//     </item>
+	//     <item jid="bareJID" name="optionalName"/>
 	//   </query>
 	// </iq>
-
+	
 	NSXMLElement *item = [NSXMLElement elementWithName:@"item"];
 	[item addAttributeWithName:@"jid" stringValue:[jid bare]];
-
-	if(optionalName)
+	
+	if (optionalName)
 	{
 		[item addAttributeWithName:@"name" stringValue:optionalName];
 	}
-
-	for (NSString *group in groups) {
-		NSXMLElement *groupElement = [NSXMLElement elementWithName:@"group"];
-		[groupElement setStringValue:group];
-		[item addChild:groupElement];
-	}
-
+	
 	NSXMLElement *query = [NSXMLElement elementWithName:@"query" xmlns:@"jabber:iq:roster"];
 	[query addChild:item];
-
-	NSXMLElement *iq = [NSXMLElement elementWithName:@"iq"];
-	[iq addAttributeWithName:@"type" stringValue:@"set"];
+	
+	XMPPIQ *iq = [XMPPIQ iqWithType:@"set"];
 	[iq addChild:query];
-
+	
 	[xmppStream sendElement:iq];
-
-	if(subscribe)
-	{
-		[self subscribePresenceToUser:jid];
-	}
+	
+	// Subscribe to the user's presence.
+	// 
+	// <presence to="bareJID" type="subscribe"/>
+	
+	[xmppStream sendElement:[XMPPPresence presenceWithType:@"subscribe" to:[jid bareJID]]];
 }
 
 - (void)setNickname:(NSString *)nickname forUser:(XMPPJID *)jid
@@ -607,7 +544,7 @@ enum XMPPRosterFlags
 	
 	dispatch_block_t block = ^{ @autoreleasepool {
 		
-		if ([self _requestedRoster])
+		if ([self requestedRoster])
 		{
 			// We've already requested the roster from the server.
 			return;
@@ -625,10 +562,10 @@ enum XMPPRosterFlags
 		
 		[xmppStream sendElement:iq];
 		
-		[self _setRequestedRoster:YES];
+		[self setRequestedRoster:YES];
 	}};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -663,12 +600,10 @@ enum XMPPRosterFlags
 	NSXMLElement *query = [iq elementForName:@"query" xmlns:@"jabber:iq:roster"];
 	if (query)
 	{
-		BOOL hasRoster = [self _hasRoster];
+		BOOL hasRoster = [self hasRoster];
 		
 		if (!hasRoster)
 		{
-            [self _setPopulatingRoster:YES];
-            [multicastDelegate xmppRosterDidBeginPopulating:self];
 			[xmppRosterStorage beginRosterPopulationForXMPPStream:xmppStream];
 		}
 		
@@ -679,8 +614,6 @@ enum XMPPRosterFlags
 			// That is, those users who have requested to be our buddy, but we haven't approved yet.
 			// This is described in more detail in the method isRosterItem above.
 			
-            [multicastDelegate xmppRoster:self didRecieveRosterItem:item];
-            
 			if (hasRoster || [self isRosterItem:item])
 			{
 				[xmppRosterStorage handleRosterItem:item xmppStream:xmppStream];
@@ -691,9 +624,7 @@ enum XMPPRosterFlags
 		{
 			// We should have our roster now
 			
-			[self _setHasRoster:YES];
-            [self _setPopulatingRoster:NO];
-            [multicastDelegate xmppRosterDidEndPopulating:self];
+			[self setHasRoster:YES];
 			[xmppRosterStorage endRosterPopulationForXMPPStream:xmppStream];
 			
 			// Process any premature presence elements we received.
@@ -717,7 +648,7 @@ enum XMPPRosterFlags
 	
 	XMPPLogTrace();
 	
-	if (![self _hasRoster] && ![self allowRosterlessOperation])
+	if (![self hasRoster] && ![self allowRosterlessOperation])
 	{
 		// We received a presence notification,
 		// but we don't have a roster to apply it to yet.
@@ -731,7 +662,7 @@ enum XMPPRosterFlags
 		// then it shouldn't be too long before we receive it.
 		// So we should be able to simply queue the presence elements for later processing.
 		
-		if ([self _requestedRoster])
+		if ([self requestedRoster])
 		{
 			// We store the presence element until we get our roster.
 			[earlyPresenceElements addObject:presence];
@@ -820,8 +751,8 @@ enum XMPPRosterFlags
 	
 	[xmppRosterStorage clearAllUsersAndResourcesForXMPPStream:xmppStream];
 	
-	[self _setRequestedRoster:NO];
-	[self _setHasRoster:NO];
+	[self setRequestedRoster:NO];
+	[self setHasRoster:NO];
 	
 	[earlyPresenceElements removeAllObjects];
 }

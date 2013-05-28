@@ -15,6 +15,32 @@
 #warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
 #endif
 
+/**
+ * Does ARC support support GCD objects?
+ * It does if the minimum deployment target is iOS 6+ or Mac OS X 10.8+
+**/
+#if TARGET_OS_IPHONE
+
+  // Compiling for iOS
+
+  #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 60000 // iOS 6.0 or later
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 0
+  #else                                         // iOS 5.X or earlier
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 1
+  #endif
+
+#else
+
+  // Compiling for Mac OS X
+
+  #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1080     // Mac OS X 10.8 or later
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 0
+  #else
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 1     // Mac OS X 10.7 or earlier
+  #endif
+
+#endif
+
 NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 
 // Log levels: off, error, warn, info, verbose
@@ -55,14 +81,14 @@ NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 		delegate = aDelegate;
 		delegateQueue = dq;
 		
-		#if !OS_OBJECT_USE_OBJC
+		#if NEEDS_DISPATCH_RETAIN_RELEASE
 		dispatch_retain(delegateQueue);
 		#endif
-
+		
 		if (rq)
 		{
 			resolverQueue = rq;
-			#if !OS_OBJECT_USE_OBJC
+			#if NEEDS_DISPATCH_RETAIN_RELEASE
 			dispatch_retain(resolverQueue);
 			#endif
 		}
@@ -70,9 +96,6 @@ NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 		{
 			resolverQueue = dispatch_queue_create("XMPPSRVResolver", NULL);
 		}
-		
-		resolverQueueTag = &resolverQueueTag;
-		dispatch_queue_set_specific(resolverQueue, resolverQueueTag, resolverQueueTag, NULL);
 		
 		results = [[NSMutableArray alloc] initWithCapacity:2];
 	}
@@ -85,7 +108,7 @@ NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 	
     [self stop];
 	
-	#if !OS_OBJECT_USE_OBJC
+	#if NEEDS_DISPATCH_RETAIN_RELEASE
 	if (resolverQueue)
 		dispatch_release(resolverQueue);
 	#endif
@@ -106,7 +129,7 @@ NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 		result = [srvName copy];
 	};
 	
-	if (dispatch_get_specific(resolverQueueTag))
+	if (dispatch_get_current_queue() == resolverQueue)
 		block();
 	else
 		dispatch_sync(resolverQueue, block);
@@ -122,7 +145,7 @@ NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 		result = timeout;
 	};
 	
-	if (dispatch_get_specific(resolverQueueTag))
+	if (dispatch_get_current_queue() == resolverQueue)
 		block();
 	else
 		dispatch_sync(resolverQueue, block);
@@ -136,7 +159,7 @@ NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 
 - (void)sortResults
 {
-	NSAssert(dispatch_get_specific(resolverQueueTag), @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == resolverQueue, @"Invoked on incorrect queue");
 	
 	XMPPLogTrace();
 	
@@ -262,7 +285,7 @@ NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 
 - (void)succeed
 {
-	NSAssert(dispatch_get_specific(resolverQueueTag), @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == resolverQueue, @"Invoked on incorrect queue");
 	
 	XMPPLogTrace();
 	
@@ -291,7 +314,7 @@ NSString *const XMPPSRVResolverErrorDomain = @"XMPPSRVResolverErrorDomain";
 
 - (void)failWithError:(NSError *)error
 {
-	NSAssert(dispatch_get_specific(resolverQueueTag), @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == resolverQueue, @"Invoked on incorrect queue");
 	
 	XMPPLogTrace2(@"%@: %@ %@", THIS_FILE, THIS_METHOD, error);
 	
@@ -403,9 +426,9 @@ static void QueryRecordCallback(DNSServiceRef       sdRef,
 	// It does some preliminary work, but the bulk of the interesting stuff 
 	// is done in the processRecord:length: method.
 	
-	XMPPSRVResolver *resolver = (__bridge XMPPSRVResolver *)context;
+    XMPPSRVResolver *resolver = (__bridge XMPPSRVResolver *)context;
 	
-	NSCAssert(dispatch_get_specific(resolver->resolverQueueTag), @"Invoked on incorrect queue");
+	NSCAssert(dispatch_get_current_queue() == resolver->resolverQueue, @"Invoked on incorrect queue");
     
 	XMPPLogCTrace();
 	
@@ -513,7 +536,7 @@ static void QueryRecordCallback(DNSServiceRef       sdRef,
 			
 		}});
 		
-		#if !OS_OBJECT_USE_OBJC
+		#if NEEDS_DISPATCH_RETAIN_RELEASE
 		dispatch_source_t theSdReadSource = sdReadSource;
 		#endif
 		DNSServiceRef theSdRef = sdRef;
@@ -522,7 +545,7 @@ static void QueryRecordCallback(DNSServiceRef       sdRef,
 			
 			XMPPLogVerbose(@"%@: sdReadSource_cancelHandler", THIS_FILE);
 			
-			#if !OS_OBJECT_USE_OBJC
+			#if NEEDS_DISPATCH_RETAIN_RELEASE
 			dispatch_release(theSdReadSource);
 			#endif
 			DNSServiceRefDeallocate(theSdRef);
@@ -557,7 +580,7 @@ static void QueryRecordCallback(DNSServiceRef       sdRef,
 		resolveInProgress = YES;
 	}};
 	
-	if (dispatch_get_specific(resolverQueueTag))
+	if (dispatch_get_current_queue() == resolverQueue)
 		block();
 	else
 		dispatch_async(resolverQueue, block);
@@ -572,7 +595,7 @@ static void QueryRecordCallback(DNSServiceRef       sdRef,
 		delegate = nil;
 		if (delegateQueue)
 		{
-			#if !OS_OBJECT_USE_OBJC
+			#if NEEDS_DISPATCH_RETAIN_RELEASE
 			dispatch_release(delegateQueue);
 			#endif
 			delegateQueue = NULL;
@@ -595,7 +618,7 @@ static void QueryRecordCallback(DNSServiceRef       sdRef,
 		if (timeoutTimer)
 		{
 			dispatch_source_cancel(timeoutTimer);
-			#if !OS_OBJECT_USE_OBJC
+			#if NEEDS_DISPATCH_RETAIN_RELEASE
 			dispatch_release(timeoutTimer);
 			#endif
 			timeoutTimer = NULL;
@@ -604,7 +627,7 @@ static void QueryRecordCallback(DNSServiceRef       sdRef,
 		resolveInProgress = NO;
 	}};
 	
-	if (dispatch_get_specific(resolverQueueTag))
+	if (dispatch_get_current_queue() == resolverQueue)
 		block();
 	else
 		dispatch_sync(resolverQueue, block);

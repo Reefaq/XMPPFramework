@@ -109,7 +109,7 @@
 
 - (void)setPhotoData:(NSData *)photoData
 {
-	if ([photoData length] == 0)
+	if (photoData == nil)
 	{
 		if (self.vCardAvatarRel != nil)
 		{
