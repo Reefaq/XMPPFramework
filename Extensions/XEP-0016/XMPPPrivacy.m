@@ -115,7 +115,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 
 - (BOOL)autoRetrievePrivacyListNames
 {
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 	{
 		return autoRetrievePrivacyListNames;
 	}
@@ -138,7 +138,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 		autoRetrievePrivacyListNames = flag;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -146,7 +146,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 
 - (BOOL)autoRetrievePrivacyListItems
 {
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 	{
 		return autoRetrievePrivacyListItems;
 	}
@@ -169,7 +169,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 		autoRetrievePrivacyListItems = flag;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -177,7 +177,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 
 - (BOOL)autoClearPrivacyListInfo
 {
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 	{
 		return autoClearPrivacyListInfo;
 	}
@@ -200,7 +200,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 		autoClearPrivacyListInfo = flag;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -260,7 +260,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 {
 	XMPPLogTrace();
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 	{
 		[privacyDict removeAllObjects];
 	}
@@ -275,7 +275,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 
 - (NSArray *)listNames
 {
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 	{
 		return [privacyDict allKeys];
 	}
@@ -307,7 +307,7 @@ typedef enum XMPPPrivacyQueryInfoType {
 	// ExecuteVoidBlock(moduleQueue, block);
 	// ExecuteNonVoidBlock(moduleQueue, block, NSArray*)
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 	{
 		return block();
 	}
@@ -857,7 +857,7 @@ NSInteger sortItems(id itemOne, id itemTwo, void *context)
 	return NO;
 }
 
--(void)xmppStreamDidDisconnect:(XMPPStream *)sender withError:(NSError *)error
+- (void)xmppStreamDidDisconnect:(XMPPStream *)sender
 {
 	// If there are any pending queries,
 	// they just failed due to the disconnection.
@@ -971,7 +971,7 @@ NSInteger sortItems(id itemOne, id itemTwo, void *context)
 	if (timer)
 	{
 		dispatch_source_cancel(timer);
-		#if !OS_OBJECT_USE_OBJC
+		#if NEEDS_DISPATCH_RETAIN_RELEASE
 		dispatch_release(timer);
 		#endif
 		timer = NULL;

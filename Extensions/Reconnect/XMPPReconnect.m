@@ -7,11 +7,37 @@
 #warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
 #endif
 
+/**
+ * Does ARC support support GCD objects?
+ * It does if the minimum deployment target is iOS 6+ or Mac OS X 10.8+
+**/
+#if TARGET_OS_IPHONE
+
+  // Compiling for iOS
+
+  #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 60000 // iOS 6.0 or later
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 0
+  #else                                         // iOS 5.X or earlier
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 1
+  #endif
+
+#else
+
+  // Compiling for Mac OS X
+
+  #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1080     // Mac OS X 10.8 or later
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 0
+  #else
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 1     // Mac OS X 10.7 or earlier
+  #endif
+
+#endif
+
 #define IMPOSSIBLE_REACHABILITY_FLAGS 0xFFFFFFFF
 
 // Log levels: off, error, warn, info, verbose
 #if DEBUG
-  static const int xmppLogLevel = XMPP_LOG_LEVEL_WARN;
+  static const int xmppLogLevel = XMPP_LOG_LEVEL_VERBOSE;
 #else
   static const int xmppLogLevel = XMPP_LOG_LEVEL_WARN;
 #endif
@@ -87,7 +113,7 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 		[self teardownNetworkMonitoring];
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_sync(moduleQueue, block);
@@ -106,7 +132,7 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 		result = (config & kAutoReconnect) ? YES : NO;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_sync(moduleQueue, block);
@@ -123,7 +149,7 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 			config &= ~kAutoReconnect;
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -131,14 +157,14 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 
 - (BOOL)shouldReconnect
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag), @"Invoked private method outside moduleQueue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked private method outside moduleQueue");
 	
 	return (flags & kShouldReconnect) ? YES : NO;
 }
 
 - (void)setShouldReconnect:(BOOL)flag
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag), @"Invoked private method outside moduleQueue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked private method outside moduleQueue");
 	
 	if (flag)
 		flags |= kShouldReconnect;
@@ -148,14 +174,14 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 
 - (BOOL)multipleReachabilityChanges
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag), @"Invoked private method outside moduleQueue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked private method outside moduleQueue");
 	
 	return (flags & kMultipleChanges) ? YES : NO;
 }
 
 - (void)setMultipleReachabilityChanges:(BOOL)flag
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag), @"Invoked private method outside moduleQueue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked private method outside moduleQueue");
 	
 	if (flag)
 		flags |= kMultipleChanges;
@@ -165,14 +191,14 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 
 - (BOOL)manuallyStarted
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag), @"Invoked private method outside moduleQueue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked private method outside moduleQueue");
 	
 	return (flags & kManuallyStarted) ? YES : NO;
 }
 
 - (void)setManuallyStarted:(BOOL)flag
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag), @"Invoked private method outside moduleQueue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked private method outside moduleQueue");
 	
 	if (flag)
 		flags |= kManuallyStarted;
@@ -182,14 +208,14 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 
 - (BOOL)queryingDelegates
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag), @"Invoked private method outside moduleQueue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked private method outside moduleQueue");
 	
 	return (flags & kQueryingDelegates) ? YES : NO;
 }
 
 - (void)setQueryingDelegates:(BOOL)flag
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag), @"Invoked private method outside moduleQueue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked private method outside moduleQueue");
 	
 	if (flag)
 		flags |= kQueryingDelegates;
@@ -214,7 +240,7 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 		}
 	}};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -237,7 +263,7 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 		
 	}};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -353,7 +379,7 @@ typedef SCNetworkConnectionFlags SCNetworkReachabilityFlags;
 #pragma mark Reachability
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void *info)
+static void ReachabilityChanged(SCNetworkReachabilityRef target, SCNetworkReachabilityFlags flags, void *info)
 {
 	@autoreleasepool {
 	
@@ -368,7 +394,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 
 - (void)setupReconnectTimer
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	if (reconnectTimer == NULL)
 	{
@@ -386,7 +412,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 			
 		}});
 		
-		#if !OS_OBJECT_USE_OBJC
+		#if NEEDS_DISPATCH_RETAIN_RELEASE
 		dispatch_source_t theReconnectTimer = reconnectTimer;
 		
 		dispatch_source_set_cancel_handler(reconnectTimer, ^{
@@ -414,7 +440,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 
 - (void)teardownReconnectTimer
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	if (reconnectTimer)
 	{
@@ -425,7 +451,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 
 - (void)setupNetworkMonitoring
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	if (reachability == NULL)
 	{
@@ -440,7 +466,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 		if (reachability)
 		{
 			SCNetworkReachabilityContext context = {0, (__bridge void *)(self), NULL, NULL, NULL};
-			SCNetworkReachabilitySetCallback(reachability, XMPPReconnectReachabilityCallback, &context);
+			SCNetworkReachabilitySetCallback(reachability, ReachabilityChanged, &context);
 			
 			CFRunLoopRef xmppRunLoop = [[xmppStream xmppUtilityRunLoop] getCFRunLoop];
 			if (xmppRunLoop)
@@ -457,7 +483,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 
 - (void)teardownNetworkMonitoring
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	if (reachability)
 	{
@@ -487,7 +513,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 **/
 - (void)maybeAttemptReconnect
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	if (reachability)
 	{
@@ -505,7 +531,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 **/
 - (void)maybeAttemptReconnectWithTicket:(int)ticket
 {
-	NSAssert(dispatch_get_specific(moduleQueueTag) , @"Invoked on incorrect queue");
+	NSAssert(dispatch_get_current_queue() == moduleQueue, @"Invoked on incorrect queue");
 	
 	if (ticket != reconnectTicket)
 	{
@@ -525,7 +551,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 
 - (void)maybeAttemptReconnectWithReachabilityFlags:(SCNetworkReachabilityFlags)reachabilityFlags
 {
-	if (!dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() != moduleQueue)
 	{
 		dispatch_async(moduleQueue, ^{ @autoreleasepool {
 			
@@ -599,14 +625,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 						[self setMultipleReachabilityChanges:NO];
 						previousReachabilityFlags = reachabilityFlags;
 						
-                        if (self.usesOldSchoolSecureConnect)
-                        {
-                            [xmppStream oldSchoolSecureConnectWithTimeout:XMPPStreamTimeoutNone error:nil];
-                        }
-                        else
-                        {
-                            [xmppStream connectWithTimeout:XMPPStreamTimeoutNone error:nil];
-                        }
+						[xmppStream connect:nil];
 					}
 					else if ([self multipleReachabilityChanges])
 					{
@@ -622,7 +641,7 @@ static void XMPPReconnectReachabilityCallback(SCNetworkReachabilityRef target, S
 					
 				}});
 				
-				#if !OS_OBJECT_USE_OBJC
+				#if NEEDS_DISPATCH_RETAIN_RELEASE
 				dispatch_release(delSemaphore);
 				dispatch_release(delGroup);
 				#endif

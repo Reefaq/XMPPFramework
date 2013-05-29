@@ -99,7 +99,7 @@ static const int ddLogLevel = LOG_LEVEL_VERBOSE;
 	if (numberOfUnreadMessages > 0)
 	{
 		UIButton *unreadIndicator = (UIButton *)cell.accessoryView;
-		NSString *unreadTitle = [NSString stringWithFormat:@"%lu", (unsigned long)numberOfUnreadMessages];
+		NSString *unreadTitle = [NSString stringWithFormat:@"%lu", numberOfUnreadMessages];
 		
 		[unreadIndicator setTitle:unreadTitle forState:UIControlStateDisabled];
 		

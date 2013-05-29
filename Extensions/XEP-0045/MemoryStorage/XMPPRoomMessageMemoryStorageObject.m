@@ -1,6 +1,6 @@
 #import "XMPPRoomMessageMemoryStorageObject.h"
 #import "XMPP.h"
-#import "NSXMLElement+XEP_0203.h"
+#import "XMPPElement+Delay.h"
 
 
 @implementation XMPPRoomMessageMemoryStorageObject

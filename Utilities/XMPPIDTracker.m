@@ -1,24 +1,40 @@
 #import "XMPPIDTracker.h"
-#import "XMPPElement.h"
 
 #if ! __has_feature(objc_arc)
 #warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
 #endif
 
-#define AssertProperQueue() NSAssert(dispatch_get_specific(queueTag), @"Invoked on incorrect queue")
+/**
+ * Does ARC support support GCD objects?
+ * It does if the minimum deployment target is iOS 6+ or Mac OS X 10.8+
+**/
+#if TARGET_OS_IPHONE
 
-const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
+  // Compiling for iOS
+
+  #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 60000 // iOS 6.0 or later
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 0
+  #else                                         // iOS 5.X or earlier
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 1
+  #endif
+
+#else
+
+  // Compiling for Mac OS X
+
+  #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1080     // Mac OS X 10.8 or later
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 0
+  #else
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 1     // Mac OS X 10.7 or earlier
+  #endif
+
+#endif
+
+#define AssertProperQueue() NSAssert(dispatch_get_current_queue() == queue, @"Invoked on incorrect queue")
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 #pragma mark -
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-@interface XMPPIDTracker ()
-{
-	void *queueTag;
-}
-
-@end
 
 @implementation XMPPIDTracker
 
@@ -36,11 +52,7 @@ const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
 	if ((self = [super init]))
 	{
 		queue = aQueue;
-		
-		queueTag = &queueTag;
-		dispatch_queue_set_specific(queue, queueTag, queueTag, NULL);
-		
-		#if !OS_OBJECT_USE_OBJC
+		#if NEEDS_DISPATCH_RETAIN_RELEASE
 		dispatch_retain(queue);
 		#endif
 		
@@ -59,7 +71,7 @@ const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
 	}
 	[dict removeAllObjects];
 	
-	#if !OS_OBJECT_USE_OBJC
+	#if NEEDS_DISPATCH_RETAIN_RELEASE
 	dispatch_release(queue);
 	#endif
 }
@@ -74,16 +86,6 @@ const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
 	[self addID:elementID trackingInfo:trackingInfo];
 }
 
-- (void)addElement:(XMPPElement *)element target:(id)target selector:(SEL)selector timeout:(NSTimeInterval)timeout
-{
-	AssertProperQueue();
-	
-	XMPPBasicTrackingInfo *trackingInfo;
-	trackingInfo = [[XMPPBasicTrackingInfo alloc] initWithTarget:target selector:selector timeout:timeout];
-	
-	[self addElement:element trackingInfo:trackingInfo];
-}
-
 - (void)addID:(NSString *)elementID
         block:(void (^)(id obj, id <XMPPTrackingInfo> info))block
       timeout:(NSTimeInterval)timeout
@@ -96,19 +98,6 @@ const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
 	[self addID:elementID trackingInfo:trackingInfo];
 }
 
-
-- (void)addElement:(XMPPElement *)element 
-             block:(void (^)(id obj, id <XMPPTrackingInfo> info))block
-           timeout:(NSTimeInterval)timeout
-{
-	AssertProperQueue();
-	
-	XMPPBasicTrackingInfo *trackingInfo;
-	trackingInfo = [[XMPPBasicTrackingInfo alloc] initWithBlock:block timeout:timeout];
-	
-	[self addElement:element trackingInfo:trackingInfo];
-}
-
 - (void)addID:(NSString *)elementID trackingInfo:(id <XMPPTrackingInfo>)trackingInfo
 {
 	AssertProperQueue();
@@ -116,19 +105,6 @@ const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
 	[dict setObject:trackingInfo forKey:elementID];
 	
 	[trackingInfo setElementID:elementID];
-	[trackingInfo createTimerWithDispatchQueue:queue];
-}
-
-- (void)addElement:(XMPPElement *)element trackingInfo:(id <XMPPTrackingInfo>)trackingInfo
-{
-	AssertProperQueue();
-    
-    if([[element elementID] length] == 0) return;
-	
-	[dict setObject:trackingInfo forKey:[element elementID]];
-	
-	[trackingInfo setElementID:[element elementID]];
-    [trackingInfo setElement:element];
 	[trackingInfo createTimerWithDispatchQueue:queue];
 }
 
@@ -147,13 +123,6 @@ const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
 	}
 	
 	return NO;
-}
-
-- (NSUInteger)numberOfIDs
-{
-    AssertProperQueue();
-	
-	return [[dict allKeys] count];
 }
 
 - (void)removeID:(NSString *)elementID
@@ -189,7 +158,6 @@ const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
 
 @synthesize timeout;
 @synthesize elementID;
-@synthesize element;
 
 - (id)init
 {
@@ -259,7 +227,7 @@ const NSTimeInterval XMPPIDTrackerTimeoutNone = -1;
 	if (timer)
 	{
 		dispatch_source_cancel(timer);
-		#if !OS_OBJECT_USE_OBJC
+		#if NEEDS_DISPATCH_RETAIN_RELEASE
 		dispatch_release(timer);
 		#endif
 		timer = NULL;

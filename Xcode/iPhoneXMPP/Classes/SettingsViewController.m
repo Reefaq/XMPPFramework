@@ -57,7 +57,7 @@ NSString *const kXMPPmyPassword = @"kXMPPmyPassword";
   [self setField:jidField forKey:kXMPPmyJID];
   [self setField:passwordField forKey:kXMPPmyPassword];
 
-  [self dismissViewControllerAnimated:YES completion:NULL];
+  [self dismissModalViewControllerAnimated:YES];
 }
 
 - (IBAction)hideKeyboard:(id)sender {

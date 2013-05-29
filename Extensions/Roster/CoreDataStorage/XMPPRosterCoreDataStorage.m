@@ -20,7 +20,7 @@
 #endif
 
 #define AssertPrivateQueue() \
-        NSAssert(dispatch_get_specific(storageQueueTag), @"Private method: MUST run on storageQueue");
+        NSAssert(dispatch_get_current_queue() == storageQueue, @"Private method: MUST run on storageQueue");
 
 
 @implementation XMPPRosterCoreDataStorage
@@ -54,35 +54,7 @@ static XMPPRosterCoreDataStorage *sharedInstance;
 
 - (BOOL)configureWithParent:(XMPPRoster *)aParent queue:(dispatch_queue_t)queue
 {
-	NSParameterAssert(aParent != nil);
-	NSParameterAssert(queue != NULL);
-	
-	@synchronized(self)
-	{
-		if ((parent == nil) && (parentQueue == NULL))
-		{
-			parent = aParent;
-			parentQueue = queue;
-			parentQueueTag = &parentQueueTag;
-			dispatch_queue_set_specific(parentQueue, parentQueueTag, parentQueueTag, NULL);
-			
-#if !OS_OBJECT_USE_OBJC
-			dispatch_retain(parentQueue);
-#endif
-			
-			return YES;
-		}
-	}
-    
-    return NO;
-}
-
-- (void)dealloc
-{
-#if !OS_OBJECT_USE_OBJC
-	if (parentQueue)
-		dispatch_release(parentQueue);
-#endif
+	return [super configureWithParent:aParent queue:queue];
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -393,7 +365,7 @@ static XMPPRosterCoreDataStorage *sharedInstance;
 		
 		XMPPUserCoreDataStorageObject *user = [self userForJID:jid xmppStream:stream managedObjectContext:moc];
 		
-		if (user == nil && [parent allowRosterlessOperation])
+		if (user == nil)
 		{
 			// This may happen if the roster is in rosterlessOperation mode.
 			
@@ -498,43 +470,5 @@ static XMPPRosterCoreDataStorage *sharedInstance;
 		[XMPPGroupCoreDataStorageObject clearEmptyGroupsInManagedObjectContext:moc];
 	}];
 }
-
-- (NSArray *)jidsForXMPPStream:(XMPPStream *)stream{
-    
-    XMPPLogTrace();
-    
-    __block NSMutableArray *results = [NSMutableArray array];
-	
-	[self executeBlock:^{
-		
-		NSManagedObjectContext *moc = [self managedObjectContext];
-		
-		NSEntityDescription *entity = [NSEntityDescription entityForName:@"XMPPUserCoreDataStorageObject"
-												  inManagedObjectContext:moc];
-		
-		NSFetchRequest *fetchRequest = [[NSFetchRequest alloc] init];
-		[fetchRequest setEntity:entity];
-		[fetchRequest setFetchBatchSize:saveThreshold];
-		
-		if (stream)
-		{
-			NSPredicate *predicate;
-			predicate = [NSPredicate predicateWithFormat:@"streamBareJidStr == %@",
-                         [[self myJIDForXMPPStream:stream] bare]];
-			
-			[fetchRequest setPredicate:predicate];
-		}
-		
-		NSArray *allUsers = [moc executeFetchRequest:fetchRequest error:nil];
-        
-        for(XMPPUserCoreDataStorageObject *user in allUsers){
-            [results addObject:[user.jid bareJID]];
-        }
-		
-	}];
-    
-    return results;
-}
-
 
 @end

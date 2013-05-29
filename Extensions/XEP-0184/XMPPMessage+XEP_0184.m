@@ -18,7 +18,7 @@
 	return (receiptResponse != nil);
 }
 
-- (NSString *)receiptResponseID
+- (NSString *)extractReceiptResponseID
 {
 	NSXMLElement *receiptResponse = [self elementForName:@"received" xmlns:@"urn:xmpp:receipts"];
 	
@@ -52,13 +52,6 @@
 	[message addChild:received];
 	
 	return [[self class] messageFromElement:message];
-}
-
-
-- (void)addReceiptRequest
-{
-    NSXMLElement *receiptRequest = [NSXMLElement elementWithName:@"request" xmlns:@"urn:xmpp:receipts"];
-    [self addChild:receiptRequest];
 }
 
 @end

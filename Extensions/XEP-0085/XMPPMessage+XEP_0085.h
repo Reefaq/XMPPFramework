@@ -4,8 +4,6 @@
 
 @interface XMPPMessage (XEP_0085)
 
-- (NSString *)chatState;
-
 - (BOOL)hasChatState;
 
 - (BOOL)isActiveChatState;

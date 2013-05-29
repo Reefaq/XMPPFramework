@@ -3,8 +3,6 @@
 #import "XMPPRoomMessage.h"
 #import "XMPPRoomOccupant.h"
 
-#define _XMPP_ROOM_H
-
 @class XMPPIDTracker;
 @protocol XMPPRoomStorage;
 @protocol XMPPRoomDelegate;
@@ -121,7 +119,7 @@ static NSString *const XMPPMUCOwnerNamespace = @"http://jabber.org/protocol/muc#
 
 #pragma mark Room Interaction
 
-- (void)changeNickname:(NSString *)newNickname;
+- (void)chageNickname:(NSString *)newNickname;
 - (void)changeRoomSubject:(NSString *)newRoomSubject;
 
 - (void)inviteUser:(XMPPJID *)jid withMessage:(NSString *)invitationMessage;
