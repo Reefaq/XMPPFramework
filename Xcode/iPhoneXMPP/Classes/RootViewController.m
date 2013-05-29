@@ -38,7 +38,7 @@
 	titleLabel.numberOfLines = 1;
 	titleLabel.adjustsFontSizeToFitWidth = YES;
 	titleLabel.shadowColor = [UIColor colorWithWhite:0.0 alpha:0.5];
-	titleLabel.textAlignment = NSTextAlignmentCenter;
+	titleLabel.textAlignment = UITextAlignmentCenter;
 
 	if ([[self appDelegate] connect]) 
 	{
@@ -198,7 +198,7 @@
 
 - (IBAction)settings:(id)sender
 {
-	[self.navigationController presentViewController:[[self appDelegate] settingsViewController] animated:YES completion:NULL];
+	[self.navigationController presentModalViewController:[[self appDelegate] settingsViewController] animated:YES];
 }
 
 @end

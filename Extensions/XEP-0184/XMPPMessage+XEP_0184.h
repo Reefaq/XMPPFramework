@@ -6,9 +6,7 @@
 
 - (BOOL)hasReceiptRequest;
 - (BOOL)hasReceiptResponse;
-- (NSString *)receiptResponseID;
+- (NSString *)extractReceiptResponseID;
 - (XMPPMessage *)generateReceiptResponse;
-
-- (void)addReceiptRequest;
 
 @end

@@ -6,12 +6,39 @@
 #warning This file must be compiled with ARC. Use -fobjc-arc flag (or convert project to ARC).
 #endif
 
+/**
+ * Does ARC support support GCD objects?
+ * It does if the minimum deployment target is iOS 6+ or Mac OS X 10.8+
+**/
+#if TARGET_OS_IPHONE
+
+  // Compiling for iOS
+
+  #if __IPHONE_OS_VERSION_MIN_REQUIRED >= 60000 // iOS 6.0 or later
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 0
+  #else                                         // iOS 5.X or earlier
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 1
+  #endif
+
+#else
+
+  // Compiling for Mac OS X
+
+  #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1080     // Mac OS X 10.8 or later
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 0
+  #else
+    #define NEEDS_DISPATCH_RETAIN_RELEASE 1     // Mac OS X 10.7 or earlier
+  #endif
+
+#endif
+
 // Log levels: off, error, warn, info, verbose
 #if DEBUG
   static const int xmppLogLevel = XMPP_LOG_LEVEL_WARN;
 #else
   static const int xmppLogLevel = XMPP_LOG_LEVEL_WARN;
 #endif
+
 
 @implementation XMPPModule
 
@@ -33,7 +60,7 @@
 		if (queue)
 		{
 			moduleQueue = queue;
-			#if !OS_OBJECT_USE_OBJC
+			#if NEEDS_DISPATCH_RETAIN_RELEASE
 			dispatch_retain(moduleQueue);
 			#endif
 		}
@@ -43,9 +70,6 @@
 			moduleQueue = dispatch_queue_create(moduleQueueName, NULL);
 		}
 		
-		moduleQueueTag = &moduleQueueTag;
-		dispatch_queue_set_specific(moduleQueue, moduleQueueTag, moduleQueueTag, NULL);
-		
 		multicastDelegate = [[GCDMulticastDelegate alloc] init];
 	}
 	return self;
@@ -53,7 +77,7 @@
 
 - (void)dealloc
 {
-	#if !OS_OBJECT_USE_OBJC
+	#if NEEDS_DISPATCH_RETAIN_RELEASE
 	dispatch_release(moduleQueue);
 	#endif
 }
@@ -82,7 +106,7 @@
 		}
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_sync(moduleQueue, block);
@@ -111,7 +135,7 @@
 		}
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_sync(moduleQueue, block);
@@ -122,14 +146,9 @@
 	return moduleQueue;
 }
 
-- (void *)moduleQueueTag
-{
-	return moduleQueueTag;
-}
-
 - (XMPPStream *)xmppStream
 {
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 	{
 		return xmppStream;
 	}
@@ -153,7 +172,7 @@
 		[multicastDelegate addDelegate:delegate delegateQueue:delegateQueue];
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else
 		dispatch_async(moduleQueue, block);
@@ -165,7 +184,7 @@
 		[multicastDelegate removeDelegate:delegate delegateQueue:delegateQueue];
 	};
 	
-	if (dispatch_get_specific(moduleQueueTag))
+	if (dispatch_get_current_queue() == moduleQueue)
 		block();
 	else if (synchronously)
 		dispatch_sync(moduleQueue, block);
